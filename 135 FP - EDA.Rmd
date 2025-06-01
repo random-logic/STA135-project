@@ -1,0 +1,273 @@
+---
+title: "135 Final Project - EDA"
+author: "Linda Cheung"
+date: "5/31/2025"
+output: pdf_document
+---
+## Load data
+```{r}
+library(mlbench)
+data(PimaIndiansDiabetes)
+df <- PimaIndiansDiabetes
+
+dim(df)
+names(df)
+head (df)
+tail (df)
+str(df)
+summary(df)
+sapply(df, typeof)
+```
+
+The Pima Indians Diabetes Database (or Dataset) consists of 768 records with 9 variables (8 predictors).  
+
+Diabetes test results are collected by the the US National Institute of Diabetes and Digestive and Kidney Diseases from a population of women who were at least 21 years old, of Pima Indian heritage, and living near Phoenix, Arizona. The data were taken directly from PimaIndiansDiabetes2.  
+
+Q: Who are Pima Indians?  (taken from https://www.britannica.com/topic/Pima-people)
+North American Indians who traditionally lived along the Gila and Salt rivers in Arizona, U.S., in what was the core area of the prehistoric Hohokam culture. The Pima, who speak a Uto-Aztecan language and call themselves the “River People,” are usually considered to be the descendants of the Hohokam. Like their presumed ancestors, the Pima were traditionally sedentary farmers who lived in one-room houses and utilized the rivers for irrigation. Some hunting and gathering were done to supplement the diet, and in drought years, which occurred on the average of one year in five, crop failure made hunting and gathering the sole mode of subsistence. During these dry years jackrabbits and mesquite beans became the group’s dietary staples.
+
+pregnant - Number of times pregnant (ranges from 0 to 17)  
+glucose - Plasma glucose concentration a 2 hours in an oral glucose tolerance test (ranges from)  
+pressure - Diastolic blood pressure (mm Hg)  
+triceps - Triceps skin fold thickness (mm)  
+insulin - 2-Hour serum insulin (mu U/ml)  
+mass - Body mass index (weight in kg/(height in m)^2)  
+pedigree - Diabetes pedigree function  
+age - Age (years)  
+
+diabetes (response variable) - Factor indicating the diabetes test result (neg/pos); Class variable (0 or 1); Class value 1 interpreted as “tested positive for diabetes”, 0 as "tested negative for diabetes"  
+
+### Handling NAs
+```{r}
+# is.na(PimaIndiansDiabetes) indicates not missing values BUT,
+
+# Five predictors have “0” entries (glucose, pressure, triceps, insulin, mass), which indicates missing measurements in our data (shouldn't be zero by common sense)
+
+# referencing Google:
+# glucose: <140 mg/dL is considered normal.
+# pressure: less than 80 mm Hg is considered healthy
+# triceps: average is 18.7 ± 8.5 mm
+# insulin: didn't find :((
+# mass: between 18.5 and 25 kg/m² is considered normal weight
+
+# handle missing values
+
+cols_zero_missing <- c("glucose", "pressure", "triceps", "insulin", "mass")
+
+for (col in cols_zero_missing) {
+  df[[col]][ df[[col]] == 0 ] <- NA
+}
+
+sapply(df[cols_zero_missing], function(x) sum(is.na(x)))
+# provides the number of NAs for each of the 5 predictors
+
+# For EDA, we could visualize either or both raw (with NAs) and complete‑case distributions.
+
+# Missing‑Data Patterns
+if (!requireNamespace("VIM", quietly = TRUE)) {
+  install.packages("VIM")
+}
+library(VIM)
+
+aggr_plot <- aggr(df, col = c("navyblue","red"), numbers = TRUE, sortVars = TRUE,
+                  labels = names(df), cex.axis = 0.7, gap = 3, 
+                  ylab = c("Missing data","Pattern"))
+# Nearly half of the insulin values and about 30% of triceps are missing.
+
+# Check the proportion of insulin missing by diabetes status
+library(dplyr)
+
+df %>%
+  group_by(diabetes) %>%
+  summarize(
+    pct_missing_insulin = mean(is.na(insulin)),
+    pct_missing_triceps = mean(is.na(triceps)),
+    pct_missing_pressure = mean(is.na(pressure))
+  )
+# missingness is slightly higher in the “pos” group for each of these three variables
+
+# Can handle with median/mean replacement, KNN, or MICE
+
+# 1. group‐wise median / mean (i did median here)
+cols_to_impute <- c("insulin", "triceps", "pressure")
+
+df_imp_median <- df %>%
+  group_by(diabetes) %>%
+  mutate(
+    insulin = ifelse(is.na(insulin), median(insulin, na.rm = TRUE), insulin),
+    triceps = ifelse(is.na(triceps), median(triceps, na.rm = TRUE), triceps),
+    pressure = ifelse(is.na(pressure), median(pressure, na.rm = TRUE), pressure)
+  ) %>%
+  ungroup()
+
+sapply(df_imp_median[cols_to_impute], function(col) sum(is.na(col)))
+# no more NAs in those columns
+
+# 2. KNN (used k=5)
+library(VIM)
+
+df_neg <- df %>% filter(diabetes == "neg")
+df_pos <- df %>% filter(diabetes == "pos")
+
+imputed_neg <- kNN(df_neg,
+                   variable = c("insulin", "triceps", "pressure"),
+                   k = 5,
+                   dist_var = setdiff(names(df_neg), c("diabetes", "insulin", "triceps", "pressure")),
+                   imp_var = FALSE)
+
+imputed_pos <- kNN(df_pos,
+                   variable = c("insulin", "triceps", "pressure"),
+                   k = 5,
+                   dist_var = setdiff(names(df_pos), c("diabetes", "insulin", "triceps", "pressure")),
+                   imp_var = FALSE)
+
+df_imp_knn <- bind_rows(imputed_neg, imputed_pos)
+
+sapply(df_imp_knn[c("insulin", "triceps", "pressure")], function(col) sum(is.na(col)))
+```
+
+
+## Univariate analysis
+```{r}
+library(ggplot2)
+
+# Frequency table for diabetes (neg vs. pos)
+table(df$diabetes)
+prop.table(table(df$diabetes))
+
+# Bar‐plot of outcome
+ggplot(df, aes(x = diabetes, fill = diabetes)) +
+  geom_bar() +
+  ggtitle("Count of Diabetes Outcome") +
+  theme_minimal()
+
+# 268 "pos" (have diabetes), 500 "neg" (an imbalanced binary classification)
+```
+
+```{r}
+# Histograms & Boxplots using base R (can also use ggplot2 for this)
+
+numeric_vars <- setdiff(names(df), c("diabetes", "na_count"))
+
+par(mfrow = c(2, 2), mar = c(4,4,2,1))
+for (col in numeric_vars) {
+  hist(df[[col]], main = paste("Histogram of", col), xlab = col, col = "lightblue", breaks = 30)
+  boxplot(df[[col]], main = paste("Boxplot of", col), horizontal = TRUE, col = "lightgreen", na.action = na.omit)
+}
+par(mfrow = c(1,1))
+```
+
+
+## Bivariate testing
+```{r}
+# Boxplots of each predictor by diabetes status
+for (col in numeric_vars) {
+  p <- ggplot(df, aes_string(x = "diabetes", y = col, fill = "diabetes")) +
+    geom_boxplot(na.rm = TRUE) +
+    ggtitle(paste("Boxplot of", col, "by Diabetes")) +
+    theme_minimal()
+  print(p)
+}
+
+# Density plots overlaid
+for (col in numeric_vars) {
+  p <- ggplot(df, aes_string(x = col, color = "diabetes", fill = "diabetes")) +
+    geom_density(alpha = 0.3, na.rm = TRUE) +
+    ggtitle(paste("Density of", col, "by Diabetes")) +
+    theme_minimal()
+  print(p)
+}
+
+# Wilcoxon test (non‐parametric) for each predictor
+bivar_tests <- data.frame(
+  Variable = character(),
+  Wilcoxon_p = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (col in numeric_vars) {
+  grp_neg <- df[[col]][df$diabetes == "neg"]
+  grp_pos <- df[[col]][df$diabetes == "pos"]
+  if (sum(!is.na(grp_neg)) > 0 && sum(!is.na(grp_pos)) > 0) {
+    w_test <- wilcox.test(grp_neg, grp_pos, na.action = na.omit)
+    bivar_tests <- rbind(bivar_tests, 
+                         data.frame(Variable = col, Wilcoxon_p = w_test$p.value))
+  }
+}
+print(bivar_tests)
+```
+
+### Predictors' correlation
+```{r}
+# Pairwise correlation (Pearson) on complete pairs
+numeric_df <- df[, numeric_vars]
+corr_mat <- cor(numeric_df, use = "pairwise.complete.obs")
+
+round(corr_mat, 2)
+
+# visualization
+if (!requireNamespace("corrplot", quietly = TRUE)) {
+  install.packages("corrplot")
+}
+library(corrplot)
+corrplot(corr_mat, method = "color", tl.cex = 0.8, number.cex = 0.7)
+```
+
+
+## Multivariate / Pairwise plots
+```{r}
+if (!requireNamespace("GGally", quietly = TRUE)) {
+  install.packages("GGally")
+}
+library(GGally)
+
+# remove rows with any NA (good for pairs)
+pairs_df <- na.omit(df)
+
+# plot with all predictors
+ggpairs(pairs_df,
+        aes(color = diabetes, alpha = 0.4),
+        upper = list(continuous = wrap("density", alpha = 0.5)),
+        lower = list(continuous = wrap("points", alpha = 0.3, size = 0.5)),
+        diag = list(continuous = wrap("barDiag", alpha = 0.7))) +
+  ggtitle("Pairs Plot of Selected Predictors by Diabetes Status")
+
+# select a subset of (discriminative) predictors to plot (if 8 is too crowded)
+predictors_subset <- c("glucose", "mass", "age", "pregnant", "pressure")
+
+ggpairs(pairs_df, columns = predictors_subset,
+        aes(color = diabetes, alpha = 0.4),
+        upper = list(continuous = wrap("density", alpha = 0.5)),
+        lower = list(continuous = wrap("points", alpha = 0.3, size = 0.5)),
+        diag = list(continuous = wrap("barDiag", alpha = 0.7))) +
+  ggtitle("Pairs Plot of Selected Predictors by Diabetes Status")
+```
+
+
+## Check for outliers & extreme values
+```{r}
+# baseline: for each numeric variable, identify points beyond 1.5*(IQR)
+outlier_flags <- data.frame(row = integer(), variable = character(), value = numeric())
+
+for (col in numeric_vars) {
+  vals <- df[[col]]
+  q1 <- quantile(vals, 0.25, na.rm = TRUE)
+  q3 <- quantile(vals, 0.75, na.rm = TRUE)
+  iqr <- q3 - q1
+  lower <- q1 - 1.5 * iqr
+  upper <- q3 + 1.5 * iqr
+
+  outlier_idx <- which(vals < lower | vals > upper)
+  if (length(outlier_idx) > 0) {
+    for (i in outlier_idx) {
+      outlier_flags <- rbind(outlier_flags,
+                             data.frame(row = i, variable = col, value = vals[i]))
+    }
+  }
+}
+
+# number of outliers per variable
+table(outlier_flags$variable)
+
+# pedigree & insulin have many extreme outliers (20 something), whereas triceps & pregnant have just a few (<5).
+```
