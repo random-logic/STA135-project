@@ -1,0 +1,110 @@
+---
+title: "STA 135 Project"
+author: "Noah Glosson"
+date: "2025-06-10"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Loading our libraries up
+```{r,results='hide',echo=FALSE}
+library(mlbench)
+library(MASS)
+library(caret)
+library(dplyr)
+library(VIM)
+library(heplots)
+library(psych)
+```
+
+
+Pima Indians Data Imputations
+```{r}
+# Load dataset
+data(PimaIndiansDiabetes)
+df <- PimaIndiansDiabetes
+
+# Columns where 0 is invalid
+cols_to_impute <- c("glucose", "pressure", "triceps", "insulin", "mass")
+df[cols_to_impute] <- lapply(df[cols_to_impute], function(x) ifelse(x == 0, NA, x))
+df_knn <- kNN(df, variable = cols_to_impute, k = 5, imp_var = FALSE)
+
+# Confirm structure and row counts
+cat("Rows in df_KNN: ", nrow(df_knn), "\n")
+
+```
+
+
+
+```{r}
+#KNN
+knn_cols <- ifelse(df_knn$diabetes == "pos", "red", "blue")
+
+
+pairs.panels(df_knn[, 1:8],
+             gap = 0,
+             bg = knn_cols,
+             pch = 21,
+             main = "Pairwise Plots of Pima Indians Dataset (KNN Imputed)")
+
+
+
+```
+
+
+
+
+
+Testing
+```{r}
+
+# Run Box’s M Test for KNN
+res_knn <- boxM(df_knn[, 1:8], df_knn$diabetes)
+summary(res_knn)
+
+```
+
+We reject $H_0$ given our $p-value\approx0$ and conclude the covariance
+matricies are not equal. Therefore we use QDA methods
+
+
+## QDA with KNN
+```{r}
+# Set seed and split 60/40 for KNN 
+set.seed(123)
+ind <- sample(2, nrow(df_knn), replace = TRUE, prob = c(0.6, 0.4))
+train <- df_knn[ind == 1, ]
+test <- df_knn[ind == 2, ]
+
+# Fit QDA
+qda_model <- qda(diabetes ~ ., data = train)
+qda_model
+
+# Predict on training
+train_pred <- predict(qda_model, train)$class
+train_tab <- table(Predicted = train_pred, Actual = train$diabetes)
+cat("Training Confusion Matrix:\n")
+print(train_tab)
+
+# Predict on testing
+test_pred <- predict(qda_model, test)$class
+test_tab <- table(Predicted = test_pred, Actual = test$diabetes)
+cat("\nTesting Confusion Matrix:\n")
+print(test_tab)
+
+# Accuracy
+test_acc <- sum(diag(test_tab)) / sum(test_tab)
+cat("\nTesting Accuracy:", round(test_acc, 4), "\n")
+
+```
+
+
+
+
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
