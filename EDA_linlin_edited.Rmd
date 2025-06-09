@@ -351,3 +351,8 @@ ggpairs(df_final[, c(predictors_subset, "diabetes")],
         diag  = list(continuous = wrap("barDiag", alpha = 0.7))) +
   ggtitle("Pairs Plot (Subset) of Final Predictors")
 ```
+
+```{r}
+# Save final cleaned and transformed dataset
+write.csv(df_final, "df_EDA.csv", row.names = FALSE)
+```

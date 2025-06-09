@@ -16,13 +16,12 @@ library(mlbench)
 library(psych)
 library(MASS)
 
-data(PimaIndiansDiabetes)
-df <- PimaIndiansDiabetes
+df <- read.csv("df_EDA.csv")
 head(df)
 ```
 
 ```{r}
-df_features <- PimaIndiansDiabetes[, 1:8]
+df_features <- df[, 1:8]
 head(df_features)
 ```
 
@@ -35,6 +34,8 @@ print(eve)
 ```
 
 ```{r}
+df$diabetes <- as.factor(df$diabetes)
+
 # First 2 components manually
 l1 <- t(eve[, 1]) %*% t(df_features)
 l2 <- t(eve[, 2]) %*% t(df_features)
@@ -43,7 +44,7 @@ l2 <- t(eve[, 2]) %*% t(df_features)
 plot(-l1[1, ], l2[1, ], 
      main = "PCA Plot (First 2 Components)", xlab = "PC1", ylab = "PC2",
      col = as.numeric(df$diabetes), pch = 19)
-legend("topright", legend = levels(df$diabetes), col = 1:2, pch = 19)
+legend("topright", legend = levels(df$diabetes), col = 1:length(levels(df$diabetes)), pch = 19)
 ```
 
 ```{r}
@@ -82,7 +83,8 @@ plot(cumsum(val)/8, type="b", main="Cumulative Percentage Plot")
 
 ## PCA using princomp
 ```{r}
-PCA <- princomp(df_features, cor=T)
+PCA <- princomp(df_features, cor=TRUE, scores=TRUE)
+df_PCA <- as.data.frame(PCA$scores[, 1:6])
 PCA
 
 loadings(PCA)
@@ -90,8 +92,7 @@ summary(PCA)
 ```
 
 ```{r}
-# Create PCA-transformed data frame
-df_PCA <- as.data.frame(PCA$scores)
+# df_PCA <- as.data.frame(PCA$scores)
 ```
 
 ```{r}
