@@ -89,6 +89,16 @@ loadings(PCA)
 summary(PCA)
 ```
 
+```{r}
+# Create PCA-transformed data frame
+df_PCA <- as.data.frame(PCA$scores)
+```
+
+```{r}
+# Save PCA-transformed data to CSV
+write.csv(df_PCA, "df_PCA.csv", row.names = FALSE)
+```
+
 Biplots
 ```{r}
 par(mfrow=c(2,2))
