@@ -1,0 +1,100 @@
+---
+title: "Untitled"
+author: "Danny Kuei"
+date: "2025-05-30"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(mlbench)
+library(psych)
+library(MASS)
+
+data(PimaIndiansDiabetes)
+df <- PimaIndiansDiabetes
+head(df)
+```
+
+```{r}
+df_features <- PimaIndiansDiabetes[, 1:8]
+head(df_features)
+```
+
+## Basic PCA using covariance matrix
+```{r}
+ev <- eigen(cov(df_features))$values
+eve <- eigen(cov(df_features))$vectors
+print(ev)
+print(eve)
+```
+
+```{r}
+# First 2 components manually
+l1 <- t(eve[, 1]) %*% t(df_features)
+l2 <- t(eve[, 2]) %*% t(df_features)
+
+# Plot of first 2 Components
+plot(-l1[1, ], l2[1, ], 
+     main = "PCA Plot (First 2 Components)", xlab = "PC1", ylab = "PC2",
+     col = as.numeric(df$diabetes), pch = 19)
+legend("topright", legend = levels(df$diabetes), col = 1:2, pch = 19)
+```
+
+```{r}
+# Plot of sorted first component 
+plot(sort(-l1[1, ]), 
+     main = "Sorted Values of First Principal Component", ylab = "PC1")
+```
+
+## PCA using correlation matrix
+```{r}
+S <- cor(df_features)
+S
+```
+
+```{r}
+val <- eigen(S)$values
+vec <- eigen(S)$vectors
+print(val)
+print(vec)
+```
+
+Scree Plots
+```{r}
+par(mfrow = c(1, 2))
+plot(val, type = "b",
+     main = "Scree Plot", xlab = "Component", ylab = "Eigenvalue")
+screeplot(princomp(S), main = "Scree Plot")
+```
+
+Cumulative Percentage Plot
+```{r}
+cumsum(val)/8
+par(mfrow=c(1,1))
+plot(cumsum(val)/8, type="b", main="Cumulative Percentage Plot")
+```
+
+## PCA using princomp
+```{r}
+PCA <- princomp(df_features, cor=T)
+PCA
+
+loadings(PCA)
+summary(PCA)
+```
+
+Biplots
+```{r}
+par(mfrow=c(2,2))
+biplot(PCA,choices=c(1,2))
+biplot(PCA,choices=c(1,3))
+biplot(PCA,choices=c(2,3))
+biplot(PCA,choices=c(3,3))
+```
+
