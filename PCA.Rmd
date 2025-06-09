@@ -78,7 +78,9 @@ Cumulative Percentage Plot
 ```{r}
 cumsum(val)/8
 par(mfrow=c(1,1))
+png("fig/cumulative_percentage_plot.png", width = 800, height = 600)
 plot(cumsum(val)/8, type="b", main="Cumulative Percentage Plot")
+dev.off()
 ```
 
 ## PCA using princomp
@@ -108,4 +110,3 @@ biplot(PCA,choices=c(1,3))
 biplot(PCA,choices=c(2,3))
 biplot(PCA,choices=c(3,3))
 ```
-
