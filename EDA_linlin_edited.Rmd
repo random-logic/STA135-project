@@ -1,0 +1,353 @@
+---
+title: "135 Final Project - EDA"
+author: "Linda Cheung"
+date: "5/31/2025"
+output: pdf_document
+---
+## Load data
+```{r}
+library(mlbench)
+data(PimaIndiansDiabetes)
+df <- PimaIndiansDiabetes
+
+dim(df)
+names(df)
+head (df)
+tail (df)
+str(df)
+summary(df)
+sapply(df, typeof)
+```
+
+The Pima Indians Diabetes Database (or Dataset) consists of 768 records with 9 variables (8 predictors).  
+
+Diabetes test results are collected by the the US National Institute of Diabetes and Digestive and Kidney Diseases from a population of women who were at least 21 years old, of Pima Indian heritage, and living near Phoenix, Arizona. The data were taken directly from PimaIndiansDiabetes2.  
+
+Q: Who are Pima Indians?  (taken from https://www.britannica.com/topic/Pima-people)
+North American Indians who traditionally lived along the Gila and Salt rivers in Arizona, U.S., in what was the core area of the prehistoric Hohokam culture. The Pima, who speak a Uto-Aztecan language and call themselves the “River People,” are usually considered to be the descendants of the Hohokam. Like their presumed ancestors, the Pima were traditionally sedentary farmers who lived in one-room houses and utilized the rivers for irrigation. Some hunting and gathering were done to supplement the diet, and in drought years, which occurred on the average of one year in five, crop failure made hunting and gathering the sole mode of subsistence. During these dry years jackrabbits and mesquite beans became the group’s dietary staples.
+
+pregnant - Number of times pregnant (ranges from 0 to 17)  
+glucose - Plasma glucose concentration a 2 hours in an oral glucose tolerance test (ranges from)  
+pressure - Diastolic blood pressure (mm Hg)  
+triceps - Triceps skin fold thickness (mm)  
+insulin - 2-Hour serum insulin (mu U/ml)  
+mass - Body mass index (weight in kg/(height in m)^2)  
+pedigree - Diabetes pedigree function  
+age - Age (years)  
+
+diabetes (response variable) - Factor indicating the diabetes test result (neg/pos); Class variable (0 or 1); Class value 1 interpreted as “tested positive for diabetes”, 0 as "tested negative for diabetes"  
+
+
+## Univariate analysis
+```{r}
+library(ggplot2)
+
+# Frequency table for diabetes (neg vs. pos)
+table(df$diabetes)
+prop.table(table(df$diabetes))
+
+# Bar‐plot of outcome
+ggplot(df, aes(x = diabetes, fill = diabetes)) +
+  geom_bar() +
+  ggtitle("Count of Diabetes Outcome") +
+  theme_minimal()
+
+# 268 "pos" (have diabetes), 500 "neg" (an imbalanced binary classification)
+```
+
+```{r}
+# Histograms & Boxplots using base R (can also use ggplot2 for this)
+
+numeric_vars <- setdiff(names(df), c("diabetes", "na_count"))
+
+par(mfrow = c(2, 2), mar = c(4,4,2,1))
+for (col in numeric_vars) {
+  hist(df[[col]], main = paste("Histogram of", col), xlab = col, col = "lightblue", breaks = 30)
+  boxplot(df[[col]], main = paste("Boxplot of", col), horizontal = TRUE, col = "lightgreen", na.action = na.omit)
+}
+par(mfrow = c(1,1))
+```
+
+
+### Handling NAs
+```{r}
+# is.na(PimaIndiansDiabetes) indicates not missing values BUT,
+
+# Five predictors have “0” entries (glucose, pressure, triceps, insulin, mass), which indicates missing measurements in our data (shouldn't be zero by common sense)
+
+# referencing Google:
+# glucose: <140 mg/dL is considered normal.
+# pressure: less than 80 mm Hg is considered healthy
+# triceps: average is 18.7 ± 8.5 mm
+# insulin: didn't find :((
+# mass: between 18.5 and 25 kg/m² is considered normal weight
+
+# handle NAs
+
+cols_zero_missing <- c("glucose", "pressure", "triceps", "insulin", "mass")
+
+for (col in cols_zero_missing) {
+  df[[col]][ df[[col]] == 0 ] <- NA
+}
+
+sapply(df[cols_zero_missing], function(x) sum(is.na(x)))
+# provides the number of NAs for each of the 5 predictors
+
+# Suggestion: For EDA, we could visualize either or both raw (with NAs) and complete‑case distributions.
+
+# Missing‑Data Patterns
+if (!requireNamespace("VIM", quietly = TRUE)) {
+  install.packages("VIM")
+}
+library(VIM)
+
+aggr_plot <- aggr(df, col = c("navyblue","red"), numbers = TRUE, sortVars = TRUE,
+                  labels = names(df), cex.axis = 0.7, gap = 3, 
+                  ylab = c("Missing data","Pattern"))
+# Issue: Nearly half of the insulin values and about 30% of triceps are missing.
+
+# Check the proportion of insulin missing by diabetes status
+library(dplyr)
+
+df %>%
+  group_by(diabetes) %>%
+  summarize(
+    pct_missing_insulin = mean(is.na(insulin)),
+    pct_missing_triceps = mean(is.na(triceps)),
+    pct_missing_pressure = mean(is.na(pressure)),
+    pct_missing_mass = mean(is.na(mass)),
+    pct_missing_glucose = mean(is.na(glucose))
+  )
+# missingness is slightly higher in the “pos” group (insulin, triceps, pressure, and glucose) except for mass. 
+
+# Decision: Handle NAs with kNN (k=5) imputation within each diabetes group. (respects both the MAR-by-class mechanism and the multivariate relationships among age, BMI, glucose, etc).
+
+# p.s. Mean/Median is not ideal since data is skewed (see from univariate analysis)
+
+# Do KNN (use k=5)
+df_neg <- df %>% filter(diabetes == "neg")
+df_pos <- df %>% filter(diabetes == "pos")
+
+to_impute <- c("insulin", "triceps", "pressure", "mass", "glucose")
+
+dist_vars_neg <- setdiff(names(df_neg), c("diabetes", to_impute))
+dist_vars_pos <- setdiff(names(df_pos), c("diabetes", to_impute))
+
+# within each class
+imputed_neg <- kNN(df_neg,
+                   variable = to_impute,
+                   k = 5,
+                   dist_var = dist_vars_neg,
+                   imp_var = FALSE)
+
+imputed_pos <- kNN(df_pos,
+                   variable = to_impute,
+                   k = 5,
+                   dist_var = dist_vars_pos,
+                   imp_var = FALSE)
+
+df_imp_knn <- bind_rows(imputed_neg, imputed_pos)
+
+# verify
+sapply(df_imp_knn[to_impute], function(col) sum(is.na(col)))
+# 0 for each of insulin, triceps, pressure, mass, glucose
+```
+
+
+## Detect Outliers & Treat
+Given the Pima data’s biomedical origin and the fact that many “outliers” reflect real physiological variation (rather than data‐entry errors), I would lean toward transforming (and/or winsorizing).
+```{r}
+library(dplyr)
+library(ggplot2)
+library(MASS)
+
+df0 <- df_imp_knn
+
+# log-transformation
+df1 <- df0 %>%
+  mutate(
+    insulin = log(insulin + 1),
+    triceps = log(triceps + 1),
+    mass    = log(mass    + 1),
+    glucose = log(glucose + 1)
+  )
+
+# IQR on transformed (not winsorized) data
+num_vars <- setdiff(names(df1), "diabetes")
+outlier_pre <- lapply(num_vars, function(col) {
+  v   <- df1[[col]]
+  qs  <- quantile(v, c(0.25, 0.75), na.rm = TRUE)
+  iqr <- diff(qs)
+  which(v < qs[1] - 1.5*iqr | v > qs[2] + 1.5*iqr)
+})
+names(outlier_pre) <- num_vars
+
+# pre-winsorization outliers per variable
+pre_counts <- sapply(outlier_pre, length)
+print(pre_counts)
+
+# winsorize at 1st/99th percentile
+for (col in num_vars) {
+  qs <- quantile(df1[[col]], c(.01, .99), na.rm = TRUE)
+  df1[[col]] <- pmax(pmin(df1[[col]], qs[2]), qs[1])
+}
+
+# multivariate mahalanobis outliers
+df_neg <- filter(df1, diabetes == "neg")
+df_pos <- filter(df1, diabetes == "pos")
+
+m_neg <- mahalanobis(df_neg[,num_vars],
+                    center = colMeans(df_neg[,num_vars]),
+                    cov    = cov(df_neg[,num_vars]))
+m_pos <- mahalanobis(df_pos[,num_vars],
+                    center = colMeans(df_pos[,num_vars]),
+                    cov    = cov(df_pos[,num_vars]))
+
+cutoff <- qchisq(0.99, df = length(num_vars))
+extreme_rows <- which(c(m_neg, m_pos) > cutoff)
+
+# drop extreme rows
+df2 <- slice(df1, -extreme_rows)
+
+# BOX'S M test
+if (!requireNamespace("biotools", quietly = TRUE)) install.packages("biotools")
+library(biotools)
+
+# test equality of covariance matrices across classes
+boxm_res <- boxM(df2[, num_vars], grouping = df2$diabetes)
+print(boxm_res)
+
+
+# Shapiro–Wilk (univariate normality check)
+normality_results <- data.frame(
+  Variable  = character(),
+  Class     = character(),
+  Shapiro_p = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (var in num_vars) {
+  for (cls in c("neg","pos")) {
+    vals <- df2[[var]][ df2$diabetes == cls ]
+    pval <- if (length(vals) >= 3 && length(vals) <= 5000) {
+      shapiro.test(vals)$p.value
+    } else {
+      NA
+    }
+    normality_results <- rbind(
+      normality_results,
+      data.frame(Variable = var, Class = cls, Shapiro_p = pval)
+    )
+  }
+}
+
+knitr::kable(
+  normality_results,
+  digits = 3,
+  caption = "Shapiro–Wilk Test p-values by Variable and Class"
+)
+
+# Box’s M is highly significant: the two diabetes classes do not share a common covariance matrix.
+# Since class covariances are not equal. The LDA assumption of homogenous covariance is violated.
+# Suggest: Should use QDA (or a regularized variant) rather than plain LDA.
+# QDA is reasonably robust to our moderate non-normalities, especially since the tails are already stabilized.
+
+# Conclusion:
+# Box’s M test strongly rejects covariance equality (p<2.2e-16), so we (should) proceed with QDA.
+# Although Shapiro–Wilk tests indicate non-normality for most predictors (due to large sample sensitivity),
+# the prior log-transform and winsorization sufficiently mitigated extreme skew
+
+# standardize df2 for QDA/PCA (/LDA)
+df_final <- df2 %>%
+  mutate(across(all_of(num_vars), ~ as.numeric(scale(.x))))
+
+# quick sanity check
+summary(df_final)
+```
+
+
+## Bivariate testing (using df_final)
+```{r}
+numeric_vars <- setdiff(names(df_final), "diabetes")
+
+# boxplots by class
+for (col in numeric_vars) {
+  p <- ggplot(df_final, aes_string(x = "diabetes", y = col, fill = "diabetes")) +
+    geom_boxplot() +
+    ggtitle(paste("Boxplot of", col, "by Diabetes")) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  print(p)
+}
+
+# density plots overlaid by class
+for (col in numeric_vars) {
+  p <- ggplot(df_final, aes_string(x = col, color = "diabetes", fill = "diabetes")) +
+    geom_density(alpha = 0.4) +
+    ggtitle(paste("Density of", col, "by Diabetes")) +
+    theme_minimal()
+  print(p)
+}
+
+# Wilcoxon test for each predictor
+bivar_tests <- data.frame(
+  Variable    = character(),
+  Wilcoxon_p  = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (col in numeric_vars) {
+  grp_neg <- df_final[[col]][df_final$diabetes == "neg"]
+  grp_pos <- df_final[[col]][df_final$diabetes == "pos"]
+  w_test  <- wilcox.test(grp_neg, grp_pos)
+  
+  bivar_tests <- rbind(
+    bivar_tests,
+    data.frame(Variable = col, Wilcoxon_p = w_test$p.value)
+  )
+}
+
+print(bivar_tests)
+```
+
+
+### Predictors' correlation
+```{r}
+library(corrplot)
+
+# correlation matrix (with no NAs in df_final)
+numeric_df <- df_final[, numeric_vars]
+corr_mat   <- cor(numeric_df)
+
+print(round(corr_mat, 2))
+
+corrplot(corr_mat,
+         method = "color",
+         tl.cex = 0.8,
+         number.cex = 0.7,
+         title = "Correlation Matrix of Final Predictors",
+         mar = c(0,0,1,0))
+```
+
+
+## Multivariate / Pairwise plots
+```{r}
+library(GGally)
+
+# full pairs plot
+ggpairs(df_final,
+        aes(color = diabetes, alpha = 0.4),
+        upper = list(continuous = wrap("density", alpha = 0.5)),
+        lower = list(continuous = wrap("points",  alpha = 0.3, size = 0.5)),
+        diag  = list(continuous = wrap("barDiag", alpha = 0.7))) +
+  ggtitle("Pairs Plot of Final Predictors by Diabetes Status")
+
+# subset of most discriminative predictors
+predictors_subset <- c("glucose", "mass", "age", "pregnant", "pressure")
+ggpairs(df_final[, c(predictors_subset, "diabetes")],
+        aes(color = diabetes, alpha = 0.4),
+        upper = list(continuous = wrap("density", alpha = 0.5)),
+        lower = list(continuous = wrap("points",  alpha = 0.3, size = 0.5)),
+        diag  = list(continuous = wrap("barDiag", alpha = 0.7))) +
+  ggtitle("Pairs Plot (Subset) of Final Predictors")
+```
