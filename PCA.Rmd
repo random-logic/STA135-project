@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "PCA"
 author: "Danny Kuei"
 date: "2025-05-30"
 output:
