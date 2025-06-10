@@ -121,6 +121,26 @@ cat("Recall      :", round(recall, 4), "\n")
 cat("Precision   :", round(precision, 4), "\n")
 cat("Specificity :", round(specificity, 4), "\n")
 cat("F1 Score    :", round(f1, 4), "\n")
+
+#ROC Curve calculations
+qda_pca_pred_5_probs <- predict(qda_pca_5, newdata = test_pca_5)$posterior[, "pos"]
+
+roc_obj <- roc(
+  response = test_pca_5$diabetes,
+  predictor = qda_pca_pred_5_probs,
+  levels = c("neg", "pos"),
+  direction = "<"
+)
+
+# Plot ROC curve
+plot(roc_obj, col = "red", lwd = 2,
+main = "ROC Curve (QDA with 5 PCA Components)")
+
+
+#AUC
+auc_value <- auc(roc_obj)
+cat("AUC:", auc_value, "\n")
+
 ```
 
 
