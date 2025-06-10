@@ -203,4 +203,26 @@ for (k in 2:7) {
 
   cat("PCs:", k, "| Train Accuracy:", round(train_acc, 4), "| Test Accuracy:", round(test_acc, 4), "\n")
 }
+
+
+#Confusion Matrix for only 5 components
+df_PCA_5 <- df_PCA[, 1:5]
+df_PCA_5$diabetes <- df_PCA$diabetes
+
+#Split our data the same way
+set.seed(123)
+train_index <- createDataPartition(df_PCA_5$diabetes, p = 0.6, list = FALSE)
+train_pca_5 <- df_PCA_5[train_index, ]
+test_pca_5  <- df_PCA_5[-train_index, ]
+
+#Five components
+qda_pca_5 <- qda(diabetes ~ ., data = train_pca_5)
+qda_pca_pred_5 <- predict(qda_pca_5, newdata = test_pca_5)
+
+#Confusion Matrix
+confusion_5 <- confusionMatrix(factor(qda_pca_pred_5$class, 
+                                     levels = c("neg", "pos")),
+                              factor(test_pca_5$diabetes, 
+                                     levels = c("neg", "pos")))
+print(confusion_5)
 ```
