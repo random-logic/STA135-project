@@ -2,7 +2,7 @@
 title: "FINAL-QDA"
 author: "Noah Glosson"
 date: "2025-06-10"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -80,7 +80,7 @@ Accuracy Results PCA
 ```{r}
 accuracy_results <- c()
 conf_matrices <- list()
-for (k in 2:6) {
+for (k in 2:7) {
   temp_df <- df_PCA[, 1:k]
   temp_df$diabetes <- df_PCA$diabetes
 
@@ -98,7 +98,7 @@ for (k in 2:6) {
   accuracy_results <- c(accuracy_results, acc)
 }
 
-plot(2:6, accuracy_results, type = "b",
+plot(2:7, accuracy_results, type = "b",
      xlab = "# of Principal Components",
      ylab = "QDA Test Accuracy",
      main = "QDA Accuracy by # of PCA Components")
@@ -144,6 +144,80 @@ cat("Best EDA model used", best_k_eda, "features with accuracy:",
     round(accuracy_results_eda[best_k_eda - 1], 4), "\n")
 
 ```
+
+Checking for Overfitting
+```{r}
+
+#We want to check for overfitting with training vs. testing
+all_vars <- names(df_EDA)[names(df_EDA) != "diabetes"]
+accuracy_results_eda <- c()
+train_accuracy_eda <- c()
+
+for (k in 2:8) {
+  selected_vars <- all_vars[1:k]
+  temp_df <- df_EDA[, c(selected_vars, "diabetes")]
+
+  set.seed(123)
+  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
+  train <- temp_df[split == 1, ]
+  test <- temp_df[split == 2, ]
+
+  qda_model <- qda(diabetes ~ ., data = train)
+
+  # Train Accuracy
+  train_pred <- predict(qda_model, newdata = train)$class
+  train_acc <- mean(train_pred == train$diabetes)
+
+  # Test Accuracy
+  test_pred <- predict(qda_model, newdata = test)$class
+  test_acc <- mean(test_pred == test$diabetes)
+
+  train_accuracy_eda <- c(train_accuracy_eda, train_acc)
+  accuracy_results_eda <- c(accuracy_results_eda, test_acc)
+
+  cat("Features:", k, "| Train Accuracy:", round(train_acc, 4), "| Test Accuracy:", round(test_acc, 4), "\n")
+}
+
+
+#PCA Overfit
+accuracy_results_pca <- c()
+train_accuracy_pca <- c()
+
+for (k in 2:7) {
+  temp_df <- df_PCA[, 1:k]
+  temp_df$diabetes <- df_PCA$diabetes
+
+  set.seed(123)
+  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
+  train <- temp_df[split == 1, ]
+  test <- temp_df[split == 2, ]
+
+  qda_model <- qda(diabetes ~ ., data = train)
+
+  #Train and Test Accuracy
+  train_pred <- predict(qda_model, newdata = train)$class
+  train_acc <- mean(train_pred == train$diabetes)
+  test_pred <- predict(qda_model, newdata = test)$class
+  test_acc <- mean(test_pred == test$diabetes)
+
+  train_accuracy_pca <- c(train_accuracy_pca, train_acc)
+  accuracy_results_pca <- c(accuracy_results_pca, test_acc)
+
+  cat("PCs:", k, "| Train Accuracy:", round(train_acc, 4), "| Test Accuracy:", round(test_acc, 4), "\n")
+}
+
+
+```
+
+
+
+
+
+
+
+
+
+
 
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
