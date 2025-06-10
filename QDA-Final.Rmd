@@ -1,0 +1,149 @@
+---
+title: "FINAL-QDA"
+author: "Noah Glosson"
+date: "2025-06-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(MASS)
+library(caret)
+library(pROC)
+library(knitr)
+
+# Load Data
+df_EDA <- read.csv("~/Desktop/df_EDA.csv", header = TRUE)
+df_PCA <- read.csv("~/Desktop/df_PCA.csv", header = TRUE)
+df_PCA$diabetes <- as.factor(df_EDA$diabetes)
+df_EDA$diabetes <- as.factor(df_EDA$diabetes)
+
+#Splitting our data up
+set.seed(123)
+splits <- sample(2, nrow(df_PCA), replace = TRUE, prob = c(0.6, 0.4))
+train_pca <- df_PCA[splits == 1, ]
+test_pca  <- df_PCA[splits == 2, ]
+train_eda <- df_EDA[splits == 1, ]
+test_eda  <- df_EDA[splits == 2, ]
+
+#QDA Models and predictions
+qda_pca <- qda(diabetes ~ ., data = train_pca)
+qda_eda <- qda(diabetes ~ ., data = train_eda)
+qda_pca_pred <- predict(qda_pca, newdata = test_pca)
+qda_eda_pred <- predict(qda_eda, newdata = test_eda)
+
+#Factoring
+conf_pca <- confusionMatrix(factor(qda_pca_pred$class, levels = c("neg", "pos")),
+                            factor(test_pca$diabetes, levels = c("neg", "pos")))
+conf_eda <- confusionMatrix(factor(qda_eda_pred$class, levels = c("neg", "pos")),
+                            factor(test_eda$diabetes, levels = c("neg", "pos")))
+
+#Metrics
+metrics_df <- data.frame(
+  Model = c("PCA QDA", "EDA QDA"),
+  Accuracy = c(conf_pca$overall["Accuracy"], conf_eda$overall["Accuracy"]),
+  Recall = c(conf_pca$byClass["Sensitivity"], conf_eda$byClass["Sensitivity"]),
+  Precision = c(conf_pca$byClass["Pos Pred Value"], conf_eda$byClass["Pos Pred Value"]),
+  Specificity = c(conf_pca$byClass["Specificity"], conf_eda$byClass["Specificity"]),
+  F1 = c(
+    2 * ((conf_pca$byClass["Pos Pred Value"] * conf_pca$byClass["Sensitivity"]) /
+           (conf_pca$byClass["Pos Pred Value"] + conf_pca$byClass["Sensitivity"])),
+    2 * ((conf_eda$byClass["Pos Pred Value"] * conf_eda$byClass["Sensitivity"]) /
+           (conf_eda$byClass["Pos Pred Value"] + conf_eda$byClass["Sensitivity"]))
+  )
+)
+
+conf_pca
+conf_eda
+kable(metrics_df, digits = 4, caption = "QDA Performance Comparison: PCA vs EDA")
+
+```
+
+```{r}
+
+roc_pca <- roc(test_pca$diabetes, qda_pca_pred$posterior[, "pos"])
+plot(roc_pca, col = "darkred", main = "PCA ROC Curve", lwd = 2)
+legend("bottomright", legend = "PCA", col = "darkred", lwd = 2)
+
+roc_eda <- roc(test_eda$diabetes, qda_eda_pred$posterior[, "pos"])
+plot(roc_eda, col = "blue", main = "EDA ROC Curve", lwd = 2)
+legend("bottomright", legend = "EDA", col = "blue", lwd = 2)
+
+```
+
+Accuracy Results PCA
+```{r}
+accuracy_results <- c()
+conf_matrices <- list()
+for (k in 2:6) {
+  temp_df <- df_PCA[, 1:k]
+  temp_df$diabetes <- df_PCA$diabetes
+
+  set.seed(123)
+  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
+  train <- temp_df[split == 1, ]
+  test <- temp_df[split == 2, ]
+
+  qda_model <- qda(diabetes ~ ., data = train)
+  pred <- predict(qda_model, newdata = test)$class
+  cm <- table(Predicted = pred, Actual = test$diabetes)
+  conf_matrices[[paste0("PC", k)]] <- cm
+
+  acc <- mean(pred == test$diabetes)
+  accuracy_results <- c(accuracy_results, acc)
+}
+
+plot(2:6, accuracy_results, type = "b",
+     xlab = "# of Principal Components",
+     ylab = "QDA Test Accuracy",
+     main = "QDA Accuracy by # of PCA Components")
+best_k <- which.max(accuracy_results) + 1
+cat("Best PCA model used", best_k, "components with accuracy:",
+    round(accuracy_results[best_k - 1], 4), "\n")
+
+```
+
+
+
+
+```{r}
+# Accuracy vs. EDA Features
+all_vars <- names(df_EDA)[names(df_EDA) != "diabetes"]
+accuracy_results_eda <- c()
+conf_matrices_eda <- list()
+
+for (k in 2:8) {
+  selected_vars <- all_vars[1:k]
+  temp_df <- df_EDA[, c(selected_vars, "diabetes")]
+
+  set.seed(123)
+  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
+  train <- temp_df[split == 1, ]
+  test <- temp_df[split == 2, ]
+
+  qda_model <- qda(diabetes ~ ., data = train)
+  pred <- predict(qda_model, newdata = test)$class
+  cm <- table(Predicted = pred, Actual = test$diabetes)
+  conf_matrices_eda[[paste0("EDA_", k)]] <- cm
+
+  acc <- mean(pred == test$diabetes)
+  accuracy_results_eda <- c(accuracy_results_eda, acc)
+}
+
+plot(2:8, accuracy_results_eda, type = "b",
+     xlab = "# of Original Features",
+     ylab = "QDA Test Accuracy",
+     main = "QDA Accuracy by # of Original Features")
+best_k_eda <- which.max(accuracy_results_eda) + 1
+cat("Best EDA model used", best_k_eda, "features with accuracy:",
+    round(accuracy_results_eda[best_k_eda - 1], 4), "\n")
+
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
