@@ -100,6 +100,27 @@ print(test_tab)
 test_acc <- sum(diag(test_tab)) / sum(test_tab)
 cat("\nTesting Accuracy:", round(test_acc, 4), "\n")
 
+#Below are some additional scores
+
+# Accuracy
+accuracy <- confusion_5$overall["Accuracy"]
+
+# Recall
+recall <- confusion_5$byClass["Sensitivity"]
+
+# Specificity
+specificity <- confusion_5$byClass["Specificity"]
+
+# Precision
+precision <- confusion_5$byClass["Precision"]
+
+# F1 Score
+f1 <- 2 * (precision * recall) / (precision + recall)
+
+cat("Recall      :", round(recall, 4), "\n")
+cat("Precision   :", round(precision, 4), "\n")
+cat("Specificity :", round(specificity, 4), "\n")
+cat("F1 Score    :", round(f1, 4), "\n")
 ```
 
 
