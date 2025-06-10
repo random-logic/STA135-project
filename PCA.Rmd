@@ -86,7 +86,7 @@ dev.off()
 ## PCA using princomp
 ```{r}
 PCA <- princomp(df_features, cor=TRUE, scores=TRUE)
-df_PCA <- as.data.frame(PCA$scores[, 1:6])
+df_PCA <- as.data.frame(PCA$scores)
 PCA
 
 loadings(PCA)
