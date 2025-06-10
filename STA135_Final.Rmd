@@ -141,6 +141,17 @@ main = "ROC Curve (QDA with 5 PCA Components)")
 auc_value <- auc(roc_obj)
 cat("AUC:", auc_value, "\n")
 
+#Cross Validation using five folds
+set.seed(123)
+cv_control_5fold <- trainControl(method = "cv", number = 5)
+qda_cv_pca_5 <- train(
+  diabetes ~ .,
+  data = df_PCA_5,
+  method = "qda",
+  trControl = cv_control_5fold
+)
+
+print(qda_cv_pca_5)
 ```
 
 
