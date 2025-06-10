@@ -141,17 +141,27 @@ main = "ROC Curve (QDA with 5 PCA Components)")
 auc_value <- auc(roc_obj)
 cat("AUC:", auc_value, "\n")
 
-#Cross Validation using five folds
 set.seed(123)
-cv_control_5fold <- trainControl(method = "cv", number = 5)
-qda_cv_pca_5 <- train(
-  diabetes ~ .,
-  data = df_PCA_5,
-  method = "qda",
-  trControl = cv_control_5fold
-)
 
-print(qda_cv_pca_5)
+#60-20-20 split here
+train_val_index <- createDataPartition(df_PCA_5$diabetes, p = 0.8, list = FALSE)
+df_train_val <- df_PCA_5[train_val_index, ]
+df_test <- df_PCA_5[-train_val_index, ]
+
+cv_control <- trainControl(method = "cv", number = 5)
+
+qda_model_cv <- train(
+  diabetes ~ .,
+  data = df_train_val,
+  method = "qda",
+  trControl = cv_control
+)
+print(qda_model_cv)
+
+#Final evaluation
+qda_predictions <- predict(qda_model_cv, newdata = df_test)
+conf_matrix <- confusionMatrix(qda_predictions, df_test$diabetes)
+print(conf_matrix)
 ```
 
 
