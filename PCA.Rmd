@@ -69,9 +69,11 @@ print(vec)
 Scree Plots
 ```{r}
 par(mfrow = c(1, 2))
+png("fig/scree-plot.png", width = 800, height = 600)
 plot(val, type = "b",
      main = "Scree Plot", xlab = "Component", ylab = "Eigenvalue")
 screeplot(princomp(S), main = "Scree Plot")
+dev.off()
 ```
 
 Cumulative Percentage Plot

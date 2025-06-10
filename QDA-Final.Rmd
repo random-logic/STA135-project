@@ -16,18 +16,18 @@ library(pROC)
 library(knitr)
 
 # Load Data
-df_EDA <- read.csv("~/Desktop/df_EDA.csv", header = TRUE)
-df_PCA <- read.csv("~/Desktop/df_PCA.csv", header = TRUE)
+df_EDA <- read.csv("df_EDA.csv", header = TRUE)
+df_PCA <- read.csv("df_PCA.csv", header = TRUE)
 df_PCA$diabetes <- as.factor(df_EDA$diabetes)
 df_EDA$diabetes <- as.factor(df_EDA$diabetes)
 
 #Splitting our data up
 set.seed(123)
-splits <- sample(2, nrow(df_PCA), replace = TRUE, prob = c(0.6, 0.4))
-train_pca <- df_PCA[splits == 1, ]
-test_pca  <- df_PCA[splits == 2, ]
-train_eda <- df_EDA[splits == 1, ]
-test_eda  <- df_EDA[splits == 2, ]
+train_index <- createDataPartition(df_PCA$diabetes, p = 0.6, list = FALSE)
+train_pca <- df_PCA[train_index, ]
+test_pca  <- df_PCA[-train_index, ]
+train_eda <- df_EDA[train_index, ]
+test_eda  <- df_EDA[-train_index, ]
 
 #QDA Models and predictions
 qda_pca <- qda(diabetes ~ ., data = train_pca)
@@ -83,9 +83,9 @@ for (k in 2:7) {
   temp_df$diabetes <- df_PCA$diabetes
 
   set.seed(123)
-  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
-  train <- temp_df[split == 1, ]
-  test <- temp_df[split == 2, ]
+  train_index <- createDataPartition(temp_df$diabetes, p = 0.6, list = FALSE)
+  train <- temp_df[train_index, ]
+  test <- temp_df[-train_index, ]
 
   qda_model <- qda(diabetes ~ ., data = train)
   pred <- predict(qda_model, newdata = test)$class
@@ -120,9 +120,9 @@ for (k in 2:8) {
   temp_df <- df_EDA[, c(selected_vars, "diabetes")]
 
   set.seed(123)
-  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
-  train <- temp_df[split == 1, ]
-  test <- temp_df[split == 2, ]
+  train_index <- createDataPartition(temp_df$diabetes, p = 0.6, list = FALSE)
+  train <- temp_df[train_index, ]
+  test <- temp_df[-train_index, ]
 
   qda_model <- qda(diabetes ~ ., data = train)
   pred <- predict(qda_model, newdata = test)$class
@@ -156,9 +156,9 @@ for (k in 2:8) {
   temp_df <- df_EDA[, c(selected_vars, "diabetes")]
 
   set.seed(123)
-  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
-  train <- temp_df[split == 1, ]
-  test <- temp_df[split == 2, ]
+  train_index <- createDataPartition(temp_df$diabetes, p = 0.6, list = FALSE)
+  train <- temp_df[train_index, ]
+  test <- temp_df[-train_index, ]
 
   qda_model <- qda(diabetes ~ ., data = train)
 
@@ -186,9 +186,9 @@ for (k in 2:7) {
   temp_df$diabetes <- df_PCA$diabetes
 
   set.seed(123)
-  split <- sample(2, nrow(temp_df), replace = TRUE, prob = c(0.6, 0.4))
-  train <- temp_df[split == 1, ]
-  test <- temp_df[split == 2, ]
+  train_index <- createDataPartition(temp_df$diabetes, p = 0.6, list = FALSE)
+  train <- temp_df[train_index, ]
+  test <- temp_df[-train_index, ]
 
   qda_model <- qda(diabetes ~ ., data = train)
 
@@ -203,19 +203,4 @@ for (k in 2:7) {
 
   cat("PCs:", k, "| Train Accuracy:", round(train_acc, 4), "| Test Accuracy:", round(test_acc, 4), "\n")
 }
-
-
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
